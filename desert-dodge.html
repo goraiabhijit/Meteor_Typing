@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <style>
-  :root { --ink:#f8e7b9; --night:#0f0c2a; --sun:#f4b26b; --mint:#7fe0c8; --coral:#e8806c; --muted:#b9aee0; --line:rgba(255,255,255,.16);
+  :root { --ink:#f8e7b9; --night:#0f0c2a; --sun:#f4b26b; --mint:#7fe0c8; --coral:#e8806c; --muted:#b9aee0; --line:rgba(255,255,255,.28);
           --serif:"Fraunces", Georgia, serif; --mono:"Space Mono", ui-monospace, Menlo, Consolas, monospace; }
   html, body { margin:0; height:100%; overflow:hidden; background:var(--night); color:var(--ink); font-family:var(--mono);
                overscroll-behavior:none; touch-action:none; user-select:none; -webkit-user-select:none; -webkit-touch-callout:none; }
@@ -128,12 +128,12 @@ function menuScreen() {
   msg.innerHTML = `<div class="lbl">02 / SPEED &amp; NERVE</div><h1>Desert<br>Dodge</h1>
     <p>${how} Dodge the oncoming cars under the desert sun.</p>
     <div class="pills"><span>Driving</span><span>Endless</span><span>${isTouch ? "Tilt + touch" : "Keyboard + touch"}</span></div>
-    <button class="go" onclick="start()">Launch ↗</button><div class="best">Best ${best.toLocaleString()}</div>`;
+    <button class="go" onclick="initAudio();start()">Launch ↗</button><div class="best">Best ${best.toLocaleString()}</div>`;
 }
 function overScreen(s, nb) {
   msg.innerHTML = `<div class="lbl crash">CRASH</div><div class="sub">YOUR SCORE</div><div class="big">${s.toLocaleString()}</div>
     ${nb ? '<div class="badge">NEW BEST</div>' : `<div class="best" style="margin:6px 0 14px">Best ${best.toLocaleString()}</div>`}
-    <button class="go" onclick="start()">Play again ↗</button><a class="ghost" href="index.html">← Arcade</a>`;
+    <button class="go" onclick="initAudio();start()">Play again ↗</button><a class="ghost" href="index.html">← Arcade</a>`;
 }
 function start() {
   initAudio(); enableTilt(); tiltNeutral = null;
@@ -286,10 +286,10 @@ function render() {
     if (band) { ctx.fillStyle = col([248,231,185]); const lw = Math.max(half * 0.015, 0.5);
       for (const lx of [-0.333, 0.333]) ctx.fillRect(cx + lx * half - lw, y, lw * 2, 1); }
   }
-  // heat haze at the horizon
-  const hg = ctx.createLinearGradient(0, HOR - 30 * U, 0, HOR + 45 * U), h8 = hz.map(v => v | 0);
-  hg.addColorStop(0, `rgba(${h8},0)`); hg.addColorStop(0.45, `rgba(${h8},0.75)`); hg.addColorStop(1, `rgba(${h8},0)`);
-  ctx.fillStyle = hg; ctx.fillRect(0, HOR - 30 * U, W, 75 * U);
+  // subtle horizon shimmer — only at the road/sky edge, not covering the road
+  const hg = ctx.createLinearGradient(0, HOR - 8 * U, 0, HOR + 18 * U), h8 = hz.map(v => v | 0);
+  hg.addColorStop(0, `rgba(${h8},0)`); hg.addColorStop(0.5, `rgba(${h8},0.28)`); hg.addColorStop(1, `rgba(${h8},0)`);
+  ctx.fillStyle = hg; ctx.fillRect(0, HOR - 8 * U, W, 26 * U);
 
   // automatic headlights: two soft low-beam cones on the road, brightest just ahead of the car, fading with distance
   const hl = clamp((night - 0.2) / 0.5, 0, 1);
@@ -337,24 +337,33 @@ function render() {
     }
     ctx.globalAlpha = 1;
   }
+
   ctx.restore();
 
-  // HUD (hub fonts, sizes follow the screen, kept clear of notches)
-  const fs = 24 * U, mx = 14 * U, ty = SA.t + mx + fs, shade = "rgba(10,8,30,.7)";
-  for (const [dx, c] of [[1, shade], [0, "#f8e7b9"]]) {
-    ctx.font = `800 ${fs | 0}px Fraunces, Georgia, serif`; ctx.fillStyle = c; ctx.textAlign = "left";
-    ctx.fillText((score | 0).toLocaleString(), SA.l + mx + dx, ty + dx);
-    ctx.font = `700 ${14 * U | 0}px "Space Mono", ui-monospace, monospace`; ctx.textAlign = "right";
-    ctx.fillText(Math.round(speed * 6) + " KM/H", W - SA.r - mx + dx, ty + dx);
-    if (braking) { ctx.fillStyle = dx ? shade : "#e8806c"; ctx.textAlign = "center"; ctx.fillText("BRAKING", W / 2 + dx, ty + dx); }
-    if (hl > 0.5) { ctx.font = `700 ${11 * U | 0}px "Space Mono", monospace`; ctx.fillStyle = dx ? shade : "#f4b26b"; ctx.textAlign = "left"; ctx.fillText("HEADLIGHTS ON", SA.l + mx + dx, ty + fs * 0.8 + dx); }
-  }
+  // HUD — crisp text with a shadow for legibility
+  const fs = 24 * U, mx = 14 * U, ty = SA.t + mx + fs;
+  ctx.shadowColor = "rgba(0,0,0,.85)";
+  ctx.shadowBlur = 6;
+  ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 1;
+
+  ctx.fillStyle = "#f8e7b9";
+  ctx.font = `800 ${fs | 0}px Fraunces, Georgia, serif`; ctx.textAlign = "left";
+  ctx.fillText((score | 0).toLocaleString(), SA.l + mx, ty);
+  ctx.font = `700 ${14 * U | 0}px "Space Mono", ui-monospace, monospace`; ctx.textAlign = "right";
+  ctx.fillText(Math.round(speed * 6) + " KM/H", W - SA.r - mx, ty);
+  if (braking) { ctx.fillStyle = "#e8806c"; ctx.textAlign = "center"; ctx.fillText("BRAKING", W / 2, ty); }
+  if (hl > 0.5) { ctx.font = `700 ${11 * U | 0}px "Space Mono", monospace`; ctx.fillStyle = "#f4b26b"; ctx.textAlign = "left"; ctx.fillText("HEADLIGHTS ON", SA.l + mx, ty + fs * 0.8); }
+
+  ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
 }
 
 // ---------- sound (generated with Web Audio, no files) ----------
 let ac, master, eng1, eng2, engGain, windGain, windF, brakeGain, noiseBuf, muted = false;
+function resumeAudio() {
+  if (ac && ac.state === "suspended") ac.resume();
+}
 function initAudio() {
-  if (ac) { if (ac.state === "suspended") ac.resume(); return; }
+  if (ac) { resumeAudio(); return; }
   try {
     ac = new (window.AudioContext || window.webkitAudioContext)();
     master = ac.createGain(); master.gain.value = muted ? 0 : 0.6; master.connect(ac.destination);
@@ -374,7 +383,13 @@ function initAudio() {
     };
     const w = loop(600, 0.7); windGain = w.g; windF = w.fl;       // wind
     brakeGain = loop(2800, 6).g;                                  // tyre squeal
+    // ensure context is running after creation (mobile may leave it suspended)
+    resumeAudio();
   } catch (e) { ac = null; }
+}
+// resume on any user interaction so mobile browsers unlock audio
+for (const ev of ["touchstart", "touchend", "pointerdown", "keydown", "click"]) {
+  document.addEventListener(ev, resumeAudio, { once: false, passive: true });
 }
 function updateAudio() {
   if (!ac) return;

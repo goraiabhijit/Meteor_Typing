@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Meteor Typing</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:opsz,wght@9..144,600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --sky1:#15102f; --sky2:#27325f; --glow:#f2b46d;
+  --word:#fbe3b0; --typed:#7fe0c8; --muted:#a9a3c9; --bad:#ff7a8a;
+  --panel:rgba(24,20,56,.82); --line:rgba(251,227,176,.22);
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+:root[data-theme="light"]{}
+*{box-sizing:inherit}
+html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px)}
+body{height:100%;margin:0;overflow:hidden;color:var(--word);
+  font-family:"DM Mono",ui-monospace,Menlo,Consolas,monospace;
+  background:linear-gradient(180deg,var(--sky1) 0%,var(--sky2) 55%,#7a5f86 82%,#c98f73 100%)}
+canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
+.hud{position:fixed;top:env(safe-area-inset-top,0px);left:0;right:0;display:flex;gap:28px;align-items:flex-end;
+  padding:16px 24px;font-size:13px;color:var(--muted);pointer-events:none;flex-wrap:wrap}
+.hud b{display:block;font-size:24px;font-weight:500;color:var(--word);line-height:1.1}
+.hud .lives{margin-left:auto;display:flex;gap:6px;align-items:center;padding-bottom:6px}
+.heart{width:12px;height:12px;border-radius:50%;background:var(--glow);transition:.2s}
+.heart.off{background:transparent;box-shadow:inset 0 0 0 2px var(--muted);opacity:.5}
+.toast{position:fixed;top:30%;left:0;right:0;text-align:center;font:600 44px Fraunces,Georgia,serif;
+  opacity:0;pointer-events:none;color:var(--word);transition:opacity .5s}
+.toast.on{opacity:1;transition:none}
+#panel{position:fixed;inset:0;display:grid;place-items:center;padding:20px;background:rgba(10,8,28,.45)}
+#panel[hidden]{display:none}
+.card{width:min(460px,100%);padding:32px;border-radius:20px;background:var(--panel);
+  border:1px solid var(--line);backdrop-filter:blur(8px);text-align:center}
+.card h1{margin:0 0 6px;font:600 40px Fraunces,Georgia,serif;letter-spacing:-.01em}
+.card p{margin:0 0 20px;color:var(--muted);line-height:1.55;font-size:14px}
+.modes{display:flex;gap:8px;justify-content:center;margin-bottom:14px}
+button{font:inherit;cursor:pointer}
+.mode{padding:8px 14px;border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--muted)}
+.mode[aria-pressed="true"]{background:var(--typed);border-color:var(--typed);color:#10201f}
+.go{padding:13px 30px;border:0;border-radius:12px;background:var(--glow);color:#2a1a08;font-weight:500;font-size:16px}
+.go:hover{filter:brightness(1.08)}
+button:focus-visible{outline:2px solid var(--typed);outline-offset:3px}
+.hint{margin-top:16px;font-size:12px;color:var(--muted)}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:18px 0 24px}
+.stats b{display:block;font-size:26px;font-weight:500;color:var(--word)}
+.stats span{font-size:12px;color:var(--muted)}
+.best{color:var(--typed);margin-bottom:16px;font-size:14px}
+@media (max-width:520px){.hud{gap:16px}.hud b{font-size:19px}.card{padding:24px}}
+</style>
+</head>
+<body>
+<canvas id="c" aria-label="Game area"></canvas>
+
+<div class="hud" aria-live="off">
+  <div>score<b id="hScore">0</b></div>
+  <div>speed<b id="hWpm">0 wpm</b></div>
+  <div>accuracy<b id="hAcc">100%</b></div>
+  <div>level<b id="hLvl">1</b></div>
+  <div id="hPaceBox">pace<b id="hPace">1.0x</b></div>
+  <div class="lives" id="hLives" aria-label="Lives"></div>
+</div>
+<div class="toast" id="toast"></div>
+<div id="panel"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const cv = $('c'), ctx = cv.getContext('2d');
+// ===== WORD LISTS: one flat array of {text, d} per mode. d = 1 easy, 2 medium, 3 hard. =====
+// Add words to any tier freely. Code mode is case-sensitive; avoid quotes that break JS strings.
+const tier = (d, list) => (Array.isArray(list) ? list : list.split(' ')).map(text => ({text, d}));
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+const WORDS = {
+  plain: [
+    ...tier(1, 'cat dog sun map cup pen box key leg arm sky sea ice egg bag hat bed car bus fan jam nut owl pig rug web zoo gold moon star rain wind fire lake tree bird fish book door milk rock sand snow road ship leaf cake coin farm gate hill kite lamp nest park ring salt wolf yard cloud grape plant smile train water'),
+    ...tier(2, 'garden bridge candle castle copper corner dragon engine flower forest friend island jacket jungle ladder lantern letter marble market meadow mirror monkey morning mountain needle orange pencil pepper planet pocket pillow puzzle rabbit rocket school shadow silver spider spring sunset thunder ticket tomato travel turtle valley velvet window winter yellow zipper library kitchen weather whisper journey keyboard'),
+    ...tier(3, 'adventure chocolate telescope mushroom lighthouse butterfly wilderness umbrella calendar bicycle treasure rhythm necessary beautiful absolutely knowledge restaurant government neighborhood temperature experience comfortable communication extraordinary refrigerator imagination mysterious photograph vocabulary conversation independent transportation pronunciation dictionary electricity opportunity unbelievable accommodate occurrence'),
+  ],
+  code: [
+    ...tier(1, ['()', '[]', '{}', '=>', '&&', '||', '===', '!==', 'i++', 'i--', 'x += 1', 'a[0]', 'obj.key', 'null', 'true', 'false', 'NaN', 'let', 'const', 'var', 'if (x)', 'else {}', 'try {}', 'new Map()', 'map()', 'pop()', 'push()', 'sort()', 'void 0', 'x ?? y', 'a % b', '!ok', 'this.x']),
+    ...tier(2, ['async', 'await', 'return', 'typeof', 'import', 'export', 'Promise', 'slice()', 'join()', 'split()', 'fetch()', 'filter()', 'reduce()', 'includes()', 'parseInt()', 'Math.floor()', 'Math.random()', 'JSON.parse()', 'console.log()', 'res.json()', 'req.body', 'useState()', 'git push', 'git commit', 'npm install', 'SELECT *', '#include', 'x ? a : b', 'for (;;)', 'while (true)', '<div></div>', 'snake_case', 'camelCase', '__init__', 'def main():', 'print(x)', 'arr.length', 'str.trim()']),
+    ...tier(3, ['forEach()', 'setTimeout()', 'useEffect()', 'app.listen()', 'O(n log n)', 'getElementById()', 'addEventListener()', 'Object.entries(obj)', 'Array.from()', 'document.body', 'localStorage.clear()', 'new Promise(r => r)', 'export default App', 'const { a, b } = obj', 'arr.map(x => x * 2)', 'if (!ok) return null', 'JSON.stringify(data)', 'git checkout -b dev', 'async () => {}', 'SELECT * FROM users', 'try { await f() }', 'catch (err) {}', 'x = y || {}', 'public static void']),
+  ]
+};
+const DDESC = {
+  normal: 'Classic run: you have five lives, and the words fall faster and faster as you level up.',
+  smart: 'Speed adapts to you. It eases off when you miss words and ramps up when you type fast and clean. No lives, so you can play for as long as you like. Press Esc to pause and end the run.'
+};
+const DESC = {
+  plain: 'Words fall from the sky. Type one to blow it up before it hits the city. Mistakes break your streak, and misses cost a life.',
+  code: 'Code snippets fall from the sky: brackets, operators, methods and commands. Type them exactly, including symbols, spaces and capital letters, before they hit the city.'
+};
+
+// ---------- state (memory only; resets on reload) ----------
+let mode = 'plain', diff = 'normal', best = 0, state = 'menu';
+let W, H, dpr, groundY, stars = [], city = [];
+let words, parts, typed, target, score, lives, level, kills, correct, wrong, combo, maxCombo, playTime, spawnT, shake, flash, last, keyTimes, missTimes, pace, streak;
+
+function resize(){
+  dpr = devicePixelRatio || 1; W = cv.clientWidth; H = cv.clientHeight;
+  cv.width = W*dpr; cv.height = H*dpr; ctx.setTransform(dpr,0,0,dpr,0,0);
+  groundY = H - 46;
+  stars = Array.from({length:120},()=>({x:Math.random()*W,y:Math.random()*groundY*.7,r:Math.random()<.15?2.2:1.2,a:Math.random()*.6+.4,t:Math.random()*6.28}));
+  city = []; for(let x=0;x<W;){const w=24+Math.random()*40;city.push({x,w,h:12+Math.random()*30});x+=w+2}
+}
+addEventListener('resize', resize); resize();
+
+function reset(){
+  words=[]; parts=[]; typed=0; target=null; score=0; lives=5; level=1; kills=0;
+  correct=0; wrong=0; combo=0; maxCombo=0; playTime=0; spawnT=.4; shake=0; flash=0; keyTimes=[]; missTimes=[]; pace=.8; streak=0;
+}
+reset();
+
+// ---------- smart difficulty ----------
+// Looks at recent typing speed (wpm over ~15s) and words missed (last 20s) and returns
+// the falling speed, spawn interval, max words on screen and the easy/medium/hard mix.
+function smartDifficulty(dt){
+  const win = Math.min(15, Math.max(playTime, 4));
+  const wpm = keyTimes.filter(t=>playTime-t<=win).length/5/(win/60);
+  const misses = missTimes.filter(t=>playTime-t<=20).length;
+  // Base pace follows typing speed, but the main driver is the clean streak: every word
+  // cleared without a miss adds 1.5% on top, so holding a steady speed still keeps the pace climbing.
+  const base = clamp(wpm/30, .6, 2.5);                 // 30 wpm = normal pace
+  let target = base * (1 + .015*Math.min(streak, 100)); // 20 clean words = 1.3x, 60 = 1.9x, 100 = 2.5x
+  target *= Math.max(.4, 1-.2*misses);                 // each recent miss slows the game 20%
+  if(correct+wrong>20 && accuracy()<85) target *= .9;  // sloppy typing eases off a bit
+  target = clamp(target, .6, 4);           // clean run speeds things up
+  pace += (target-pace)*Math.min(1, dt*(target<pace ? 1 : .15)); // ease down fast, ramp up slowly
+  return {
+    pace,
+    speed: Math.min(40*Math.pow(pace,.8), groundY/3.5),   // px/s, never faster than 3.5s to fall
+    interval: clamp(2.6/pace, .6, 3.2),                  // seconds between spawns
+    maxWords: clamp(Math.round(1.5+pace*1.8), 2, 9),     // words allowed on screen at once
+    mix: [clamp(2-pace,.15,2), Math.max(.2,1.2-Math.abs(pace-1.6)), clamp(pace-1,0,2)+.05]
+  };
+}
+
+function normalDifficulty(){
+  return {
+    speed: 40*Math.pow(1.15,level-1),
+    interval: Math.max(.45, 2.4*Math.pow(.9,level-1)),
+    maxWords: 99,
+    mix: level<=2 ? [1,.3,.02] : level<=5 ? [.5,1,.25] : [.2,.8,1]
+  };
+}
+
+// ---------- words ----------
+function pickWord(D){
+  const list = WORDS[mode] || WORDS.plain, m = D.mix;
+  const r = Math.random()*(m[0]+m[1]+m[2]);
+  const d = r<m[0] ? 1 : r<m[0]+m[1] ? 2 : 3;
+  const pool = list.filter(o=>o.d===d);
+  for(let i=0;i<15;i++){
+    const w = pool[Math.random()*pool.length|0].text;
+    if(!words.some(o=>o.text[0]===w[0] || o.text===w)) return w;
+  }
+  return pool[Math.random()*pool.length|0].text;
+}
+function spawn(D){
+  const text = pickWord(D); ctx.font = '500 22px "DM Mono",monospace';
+  const w = ctx.measureText(text).width;
+  words.push({text, w, x: 30 + Math.random()*Math.max(1,W-w-60), y:-20, k:.85+Math.random()*.3});
+}
+
+// ---------- effects ----------
+function burst(x,y){
+  for(let i=0;i<16;i++){const a=Math.random()*6.28,s=60+Math.random()*180;
+    parts.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-40,life:.7,max:.7});}
+}
+function toast(msg){const t=$('toast');t.textContent=msg;t.classList.add('on');
+  setTimeout(()=>t.classList.remove('on'),30);setTimeout(()=>{},0);
+  clearTimeout(toast.h);toast.h=setTimeout(()=>{t.classList.add('on');t.style.transition='opacity .6s';t.classList.remove('on')},700)}
+
+// ---------- input ----------
+addEventListener('keydown', e=>{
+  if(e.ctrlKey||e.metaKey||e.altKey) return;
+  if(state!=='play'){
+    if(e.key==='Enter'||(e.key==='Escape'&&state==='pause')){
+      if(document.activeElement.classList.contains('mode')) return;
+      e.preventDefault(); state==='pause' ? resume() : start();
+    }
+    return;
+  }
+  if(e.key==='Escape'){pause();return}
+  if(e.key.length!==1) return;
+  e.preventDefault();
+  const k = mode==='code' ? e.key : e.key.toLowerCase(); const c0 = correct;
+  if(!target){
+    const c = words.filter(w=>w.text[0]===k).sort((a,b)=>b.y-a.y)[0];
+    if(c){target=c;typed=1;correct++;combo++}else{wrong++;combo=0;shake=.15}
+  } else if(k===target.text[typed]){
+    typed++;correct++;combo++;maxCombo=Math.max(maxCombo,combo);
+  } else {wrong++;combo=0;shake=.15}
+  if(correct>c0) keyTimes.push(playTime);
+  if(target && typed===target.text.length){
+    score += Math.round(target.text.length*10*(1+Math.min(combo,100)/50));
+    burst(target.x+target.w/2,target.y);
+    words.splice(words.indexOf(target),1); target=null; typed=0; kills++; streak++;
+    if(kills%8===0){level++;toast('Level '+level)}
+  }
+});
+addEventListener('blur',()=>{if(state==='play')pause()});
+
+// ---------- flow ----------
+function start(){reset();state='play';$('panel').hidden=true;last=performance.now();requestAnimationFrame(loop)}
+function pause(){state='pause';panel(`<h1>Paused</h1><p>Take a breath. Your words are frozen in place.</p>
+  <button class="go" id="b1">Resume</button><div class="hint">Enter to resume</div>${diff==='smart'?'<div class="hint"><button class="mode" id="b2">End run</button></div>':''}`);$('b1').onclick=resume;if($('b2'))$('b2').onclick=over}
+function resume(){state='play';$('panel').hidden=true;last=performance.now();requestAnimationFrame(loop)}
+function over(){
+  state='over'; const wpm=Math.round(correct/5/Math.max(playTime/60,.05)), acc=accuracy();
+  const isBest = score>best; if(isBest) best=score;
+  panel(`<h1>Game over</h1><p>${isBest&&score>0?'New best score this session!':diff==='smart'?'Run ended. Nice work.':'The sky got the better of you.'}</p>
+   <div class="stats"><div><b>${score}</b><span>score</span></div><div><b>${wpm}</b><span>words per min</span></div><div><b>${acc}%</b><span>accuracy</span></div>
+   <div><b>${kills}</b><span>words destroyed</span></div><div><b>${level}</b><span>level reached</span></div><div><b>${maxCombo}</b><span>best streak</span></div></div>
+   <div class="best">Session best: ${best}</div><button class="go" id="b1">Play again</button><div class="hint">Enter to restart</div>`);
+  $('b1').onclick=start;
+}
+function menu(){
+  panel(`<h1>Meteor Typing</h1><p id="modeDesc">${DESC[mode]}</p>
+  <div class="modes"><button class="mode" data-m="plain" aria-pressed="true">Everyday words</button><button class="mode" data-m="code" aria-pressed="false">Code words</button></div>
+  <div class="modes"><button class="mode" data-d="normal" aria-pressed="true">Normal</button><button class="mode" data-d="smart" aria-pressed="false">Smart speed</button></div>
+  <p id="diffDesc">${DDESC[diff]}</p>
+  <button class="go" id="b1">Start</button><div class="hint">Enter to start, Esc to pause. Scores reset when you reload.</div>`);
+  document.querySelectorAll('.mode').forEach(b=>b.onclick=()=>{
+    if(b.dataset.m){mode=b.dataset.m;$('modeDesc').textContent=DESC[mode]}
+    else{diff=b.dataset.d;$('diffDesc').textContent=DDESC[diff]}
+    b.parentNode.querySelectorAll('.mode').forEach(x=>x.setAttribute('aria-pressed',x===b))});
+  $('b1').onclick=start;
+}
+function panel(html){const p=$('panel');p.innerHTML='<div class="card">'+html+'</div>';p.hidden=false;const b=$('b1');b&&b.focus()}
+const accuracy = () => correct+wrong ? Math.round(correct/(correct+wrong)*100) : 100;
+
+// ---------- loop ----------
+function loop(now){
+  if(state!=='play') return;
+  const dt = Math.min(.05,(now-last)/1000); last=now; playTime+=dt;
+  const D = diff==='smart' ? smartDifficulty(dt) : normalDifficulty(); spawnT-=dt; if(spawnT<=0 && words.length<D.maxWords){spawn(D);spawnT=D.interval}
+  for(const w of words){w.y+=D.speed*w.k*dt}
+  for(const w of [...words]) if(w.y>groundY){
+    words.splice(words.indexOf(w),1); if(diff!=='smart') lives--; missTimes.push(playTime); streak=Math.floor(streak*.4); flash=.4; shake=.3; combo=0;
+    if(w===target){target=null;typed=0} burst(w.x+w.w/2,groundY);
+  }
+  for(const p of parts){p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=300*dt;p.life-=dt}
+  parts=parts.filter(p=>p.life>0); shake=Math.max(0,shake-dt); flash=Math.max(0,flash-dt);
+  draw(); hud();
+  if(lives<=0){over();return}
+  requestAnimationFrame(loop);
+}
+function hud(){
+  $('hScore').textContent=score; $('hWpm').textContent=Math.round(correct/5/Math.max(playTime/60,.05))+' wpm';
+  $('hAcc').textContent=accuracy()+'%'; $('hLvl').textContent=level; $('hPace').textContent=pace.toFixed(1)+'x';
+  const sm=diff==='smart'; $('hPaceBox').style.display=sm?'':'none'; $('hLives').style.display=sm?'none':'';
+  $('hLives').innerHTML=Array.from({length:5},(_,i)=>`<i class="heart${i<lives?'':' off'}"></i>`).join('');
+}
+function draw(){
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  ctx.clearRect(0,0,W,H); ctx.save();
+  if(shake>0&&!reduce) ctx.translate((Math.random()-.5)*8,(Math.random()-.5)*8);
+  const tm=performance.now()/1000;
+  for(const s of stars){ctx.fillStyle=`rgba(255,244,214,${s.a*(.75+.25*Math.sin(tm*1.5+s.t))})`;ctx.fillRect(s.x,s.y,s.r,s.r)}
+  // horizon: warm glow, low sun, skyline
+  const hy=groundY+6;
+  const gl=ctx.createRadialGradient(W/2,hy,0,W/2,hy,Math.max(W,H)*.6);
+  gl.addColorStop(0,'rgba(255,214,120,.8)');gl.addColorStop(.25,'rgba(242,180,109,.4)');gl.addColorStop(1,'rgba(242,180,109,0)');
+  ctx.fillStyle=gl; ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='#ffe29a'; ctx.beginPath(); ctx.arc(W/2,hy,Math.min(90,W*.12),Math.PI,0); ctx.fill();
+  ctx.fillStyle='#161029'; for(const b of city) ctx.fillRect(b.x,hy-b.h,b.w,b.h+H);
+  ctx.fillRect(0,hy,W,H);
+  ctx.font='500 22px "DM Mono",monospace'; ctx.textBaseline='middle';
+  ctx.shadowColor='rgba(15,10,40,.9)'; ctx.shadowBlur=6;
+  for(const w of words){
+    const cx=w.x+w.w/2, isT=w===target;
+    const tr=ctx.createLinearGradient(0,w.y-70,0,w.y-14); tr.addColorStop(0,'rgba(251,227,176,0)'); tr.addColorStop(1,isT?'rgba(127,224,200,.5)':'rgba(251,227,176,.35)');
+    ctx.fillStyle=tr; ctx.fillRect(cx-1,w.y-70,2,56);
+    if(isT){ctx.strokeStyle='rgba(127,224,200,.6)';ctx.lineWidth=1.5;ctx.beginPath();ctx.roundRect(w.x-10,w.y-17,w.w+20,34,17);ctx.stroke()}
+    const t=isT?typed:0, a=w.text.slice(0,t), b=w.text.slice(t);
+    ctx.textAlign='left'; ctx.fillStyle='#7fe0c8'; ctx.fillText(a,w.x,w.y);
+    ctx.fillStyle='#fbe3b0'; ctx.fillText(b,w.x+ctx.measureText(a).width,w.y);
+  }
+  ctx.shadowBlur=0;
+  for(const p of parts){ctx.globalAlpha=p.life/p.max;ctx.fillStyle='#f2b46d';ctx.fillRect(p.x,p.y,3,3)}
+  ctx.globalAlpha=1; ctx.restore();
+  if(flash>0){ctx.fillStyle=`rgba(255,122,138,${flash*.5})`;ctx.fillRect(0,0,W,H)}
+}
+menu(); draw();
+</script>
+</body>
+</html>

@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Arcade Afterglow</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #f8e7b9;
+    --muted: #9b94c2;
+    --sun: #f4b26b;
+    --mint: #7fe0c8;
+    --line: rgba(248,231,185,.15);
+    --mono: "Space Mono", ui-monospace, Consolas, monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%; overflow: hidden;
+    font-family: var(--mono);
+    color: var(--ink);
+  }
+
+  /* ── Sky background ── */
+  body {
+    background:
+      radial-gradient(ellipse 500px 380px at 50% 100%, rgba(244,178,107,.55) 0%, transparent 65%),
+      linear-gradient(180deg,
+        #0e0b22 0%,
+        #1a1640 22%,
+        #2d3468 42%,
+        #7a5f86 68%,
+        #c98f73 88%,
+        #d9a07a 100%
+      );
+  }
+
+  /* ── Stars ── */
+  body::before {
+    content: "";
+    position: fixed; inset: 0;
+    pointer-events: none;
+    background-image:
+      /* large bright */
+      radial-gradient(1.8px 1.8px at  8%  7%, #fff 50%, transparent 51%),
+      radial-gradient(1.8px 1.8px at 63% 11%, #fff 50%, transparent 51%),
+      radial-gradient(1.8px 1.8px at 85%  4%, #fff 50%, transparent 51%),
+      radial-gradient(1.8px 1.8px at 37% 18%, #fff 50%, transparent 51%),
+      radial-gradient(1.8px 1.8px at 92% 22%, #fff 50%, transparent 51%),
+      /* medium */
+      radial-gradient(1.3px 1.3px at 19%  5%, var(--ink) 50%, transparent 51%),
+      radial-gradient(1.3px 1.3px at 47%  9%, var(--ink) 50%, transparent 51%),
+      radial-gradient(1.3px 1.3px at 74%  3%, var(--ink) 50%, transparent 51%),
+      radial-gradient(1.3px 1.3px at 29% 26%, var(--ink) 50%, transparent 51%),
+      radial-gradient(1.3px 1.3px at 54% 14%, var(--ink) 50%, transparent 51%),
+      radial-gradient(1.3px 1.3px at 78% 30%, var(--ink) 50%, transparent 51%),
+      radial-gradient(1.3px 1.3px at 11% 32%, var(--ink) 50%, transparent 51%),
+      radial-gradient(1.3px 1.3px at 68% 38%, var(--ink) 50%, transparent 51%),
+      radial-gradient(1.3px 1.3px at 93% 15%, var(--ink) 50%, transparent 51%),
+      /* small dim */
+      radial-gradient(1px 1px at  4% 15%, var(--ink) 50%, transparent 51%),
+      radial-gradient(1px 1px at 23% 10%, var(--ink) 50%, transparent 51%),
+      radial-gradient(1px 1px at 41%  4%, var(--ink) 50%, transparent 51%),
+      radial-gradient(1px 1px at 57% 22%, var(--ink) 50%, transparent 51%),
+      radial-gradient(1px 1px at 72%  8%, var(--ink) 50%, transparent 51%),
+      radial-gradient(1px 1px at 88% 17%, var(--ink) 50%, transparent 51%),
+      radial-gradient(1px 1px at 15% 42%, var(--ink) 50%, transparent 51%),
+      radial-gradient(1px 1px at 34% 36%, var(--ink) 50%, transparent 51%),
+      radial-gradient(1px 1px at 49% 44%, var(--ink) 50%, transparent 51%),
+      radial-gradient(1px 1px at 66% 28%, var(--ink) 50%, transparent 51%),
+      radial-gradient(1px 1px at 82% 44%, var(--ink) 50%, transparent 51%),
+      radial-gradient(1px 1px at 96% 38%, var(--ink) 50%, transparent 51%),
+      radial-gradient(1px 1px at  7% 52%, var(--ink) 50%, transparent 51%),
+      radial-gradient(1px 1px at 44% 55%, var(--ink) 50%, transparent 51%),
+      radial-gradient(1px 1px at 75% 50%, var(--ink) 50%, transparent 51%);
+    opacity: .85;
+  }
+
+  /* ── Meteor shooting stars ── */
+  .meteor-wrap {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    overflow: hidden;
+    z-index: 0;
+  }
+
+  /* thin streak: transparent tail → bright head, angled ~30° downward-left */
+  .m {
+    position: absolute;
+    width: 130px;
+    height: 1.5px;
+    border-radius: 1px;
+    background: linear-gradient(90deg, transparent 0%, rgba(255,236,180,.9) 100%);
+    opacity: 0;
+    transform-origin: right center;
+  }
+
+  /* active for ~7% of cycle, invisible the rest — feels sparse */
+  @keyframes shoot-cycle {
+    0%    { opacity: 0; transform: rotate(210deg) translateX(0); }
+    1%    { opacity: 1; }
+    5%    { opacity: .7; transform: rotate(210deg) translateX(-320px); }
+    7%    { opacity: 0; transform: rotate(210deg) translateX(-420px); }
+    7.01% { opacity: 0; transform: rotate(210deg) translateX(0); }
+    100%  { opacity: 0; transform: rotate(210deg) translateX(0); }
+  }
+
+  .m1 { top:  8%; left: 72%; animation: shoot-cycle 14s linear 0s  infinite; }
+  .m2 { top: 13%; left: 48%; animation: shoot-cycle 18s linear 3s  infinite; }
+  .m3 { top:  4%; left: 86%; animation: shoot-cycle 22s linear 7s  infinite; }
+  .m4 { top: 19%; left: 61%; animation: shoot-cycle 16s linear 11s infinite; }
+  .m5 { top:  6%; left: 28%; animation: shoot-cycle 20s linear 16s infinite; }
+
+  /* ── Cityscape SVG ── */
+  #skyline {
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    width: 100%; height: 32vh;
+    pointer-events: none;
+    display: block;
+  }
+
+  /* ── Layout ── */
+  .wrap {
+    position: relative; z-index: 1;
+    max-width: 860px;
+    height: 100vh;
+    margin: 0 auto;
+    padding: 18px 20px 34vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── Header ── */
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 10px;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .site-name { color: var(--ink); }
+  .online { display: flex; align-items: center; gap: 6px; }
+  .online::before {
+    content: "";
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--mint);
+    box-shadow: 0 0 8px var(--mint);
+  }
+
+  /* ── Hero ── */
+  .hero {
+    padding: clamp(20px, 4vh, 40px) 0 clamp(14px, 2vh, 24px);
+  }
+  .eyebrow {
+    font-size: 9px;
+    letter-spacing: .22em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  h1 {
+    font-size: clamp(28px, 5vw, 52px);
+    font-weight: 700;
+    letter-spacing: -.01em;
+    line-height: 1;
+    color: var(--ink);
+    margin-bottom: 10px;
+  }
+  .lead {
+    font-size: clamp(9px, 1.2vw, 11px);
+    color: var(--muted);
+    line-height: 1.6;
+    max-width: 44em;
+  }
+
+  /* ── Cards ── */
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    margin-top: auto;
+    padding-bottom: 4px;
+  }
+
+  .card {
+    position: relative;
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: clamp(12px, 2vw, 18px);
+    background: rgba(18,14,40,.82);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .card > * { position: relative; }
+
+  .tag {
+    font-size: 9px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  h2 {
+    font-size: clamp(18px, 2.4vw, 24px);
+    font-weight: 700;
+    color: var(--ink);
+    line-height: 1;
+  }
+
+  .card p {
+    font-size: 9px;
+    color: var(--muted);
+    line-height: 1.55;
+    margin: 0;
+  }
+
+  .pills {
+    display: flex;
+    gap: 5px;
+    flex-wrap: wrap;
+  }
+  .pills span {
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 3px 7px;
+    font-size: 8px;
+    color: var(--muted);
+  }
+
+  .launch {
+    margin-top: auto;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    text-decoration: none;
+    border-radius: 10px;
+    padding: 9px 11px;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: .08em;
+    color: #0e0b22;
+    transition: transform .15s, filter .15s;
+  }
+  .launch:hover { transform: translateY(-2px); filter: brightness(1.1); }
+  .launch:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+  .meteor .launch { background: var(--mint); }
+  .dodge  .launch { background: var(--sun); }
+
+  /* ── Responsive ── */
+  @media (max-width: 640px) {
+    .grid { grid-template-columns: 1fr; }
+    .wrap { padding-bottom: 22vh; }
+  }
+  @media (max-height: 580px) {
+    .hero { padding-top: 10px; padding-bottom: 10px; }
+    h1 { font-size: 26px; margin-bottom: 6px; }
+    .card { padding: 10px; gap: 4px; }
+    h2 { font-size: 18px; }
+    .launch { padding: 7px 9px; }
+  }
+</style>
+</head>
+<body>
+<div class="meteor-wrap" aria-hidden="true">
+  <div class="m m1"></div>
+  <div class="m m2"></div>
+  <div class="m m3"></div>
+  <div class="m m4"></div>
+  <div class="m m5"></div>
+</div>
+
+<div class="wrap">
+
+  <header>
+    <span class="site-name">Arcade Afterglow</span>
+    <span class="online">2 games online</span>
+  </header>
+
+  <section class="hero">
+    <p class="eyebrow">Choose your challenge</p>
+    <h1>Play the afterglow.</h1>
+    <p class="lead">Two small arcade worlds, one launchpad. Type through a meteor shower or race a desert highway at sunset.</p>
+  </section>
+
+  <main class="grid">
+
+    <article class="card meteor">
+      <span class="tag">01 · Focus &amp; reflex</span>
+      <h2>Meteor Typing</h2>
+      <p>Destroy falling words before they reach the ground. Build a streak, keep the sky clear.</p>
+      <div class="pills"><span>Typing</span><span>Solo score</span><span>Keyboard</span></div>
+      <a class="launch" href="Meteor%20Typing.html">
+        <span>Launch</span><span aria-hidden="true">↗</span>
+      </a>
+    </article>
+
+    <article class="card dodge">
+      <span class="tag">02 · Speed &amp; nerve</span>
+      <h2>Desert Dodge</h2>
+      <p>Race an endless sunset highway. Dodge traffic, brake fast, beat your best run.</p>
+      <div class="pills"><span>Driving</span><span>Endless</span><span>Keyboard + tilt</span></div>
+      <a class="launch" href="desert-dodge.html">
+        <span>Launch</span><span aria-hidden="true">↗</span>
+      </a>
+    </article>
+
+  </main>
+
+</div>
+
+<!-- Cityscape silhouette -->
+<!--
+  viewBox 0 0 1000 200
+  y=200 = bottom edge (ground)
+  y=0   = top of SVG (≈32vh up from bottom of screen)
+  Sun centre at x=500, y=200 (horizon), radius 68
+  Buildings are wide rects sitting on y=200
+-->
+<svg id="skyline" viewBox="0 0 1000 200" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  <!-- sun glow -->
+  <defs>
+    <radialGradient id="sunGlow" cx="50%" cy="100%" r="14%">
+      <stop offset="0%"  stop-color="#ffe29a" stop-opacity=".9"/>
+      <stop offset="40%" stop-color="#f4b26b" stop-opacity=".5"/>
+      <stop offset="100%" stop-color="#c98f73" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <ellipse cx="500" cy="200" rx="120" ry="80" fill="url(#sunGlow)"/>
+  <!-- sun disc -->
+  <circle cx="500" cy="200" r="62" fill="#ffe29a"/>
+
+  <!-- ground strip -->
+  <rect x="0" y="168" width="1000" height="32" fill="#0e0b22"/>
+
+  <!-- buildings — each as a rect, gaps between groups -->
+  <!-- left cluster -->
+  <rect x="0"   y="140" width="30"  height="60" fill="#0e0b22"/>
+  <rect x="32"  y="118" width="22"  height="82" fill="#0e0b22"/>
+  <rect x="56"  y="148" width="18"  height="52" fill="#0e0b22"/>
+  <rect x="76"  y="128" width="28"  height="72" fill="#0e0b22"/>
+  <rect x="106" y="110" width="36"  height="90" fill="#0e0b22"/>
+  <rect x="144" y="138" width="20"  height="62" fill="#0e0b22"/>
+  <rect x="166" y="120" width="26"  height="80" fill="#0e0b22"/>
+  <rect x="194" y="145" width="20"  height="55" fill="#0e0b22"/>
+
+  <!-- left-mid cluster -->
+  <rect x="224" y="105" width="40"  height="95" fill="#0e0b22"/>
+  <rect x="266" y="130" width="18"  height="70" fill="#0e0b22"/>
+  <rect x="286" y="115" width="32"  height="85" fill="#0e0b22"/>
+  <rect x="320" y="140" width="22"  height="60" fill="#0e0b22"/>
+  <rect x="344" y="120" width="30"  height="80" fill="#0e0b22"/>
+  <rect x="376" y="108" width="38"  height="92" fill="#0e0b22"/>
+
+  <!-- centre cluster (around sun — shorter to let sun show) -->
+  <rect x="420" y="130" width="34"  height="70" fill="#0e0b22"/>
+  <rect x="456" y="118" width="28"  height="82" fill="#0e0b22"/>
+  <rect x="516" y="112" width="32"  height="88" fill="#0e0b22"/>
+  <rect x="550" y="126" width="36"  height="74" fill="#0e0b22"/>
+
+  <!-- right-mid cluster -->
+  <rect x="596" y="108" width="38"  height="92" fill="#0e0b22"/>
+  <rect x="636" y="122" width="28"  height="78" fill="#0e0b22"/>
+  <rect x="666" y="138" width="22"  height="62" fill="#0e0b22"/>
+  <rect x="690" y="115" width="34"  height="85" fill="#0e0b22"/>
+  <rect x="726" y="130" width="20"  height="70" fill="#0e0b22"/>
+
+  <!-- right cluster -->
+  <rect x="754" y="145" width="20"  height="55" fill="#0e0b22"/>
+  <rect x="776" y="122" width="26"  height="78" fill="#0e0b22"/>
+  <rect x="804" y="110" width="36"  height="90" fill="#0e0b22"/>
+  <rect x="842" y="138" width="20"  height="62" fill="#0e0b22"/>
+  <rect x="864" y="120" width="28"  height="80" fill="#0e0b22"/>
+  <rect x="894" y="148" width="18"  height="52" fill="#0e0b22"/>
+  <rect x="914" y="128" width="22"  height="72" fill="#0e0b22"/>
+  <rect x="938" y="142" width="30"  height="58" fill="#0e0b22"/>
+  <rect x="970" y="130" width="30"  height="70" fill="#0e0b22"/>
+</svg>
+
+<script>
+  // surface saved best scores on cards
+  function showBest(selector, key) {
+    try {
+      const v = +localStorage.getItem(key);
+      if (v > 0) {
+        const tag = document.querySelector(selector + " .tag");
+        if (tag) tag.textContent += "  ·  best " + v.toLocaleString();
+      }
+    } catch (e) {}
+  }
+  showBest(".meteor", "meteor:best");
+  showBest(".dodge",  "dodge:best");
+</script>
+</body>
+</html>
